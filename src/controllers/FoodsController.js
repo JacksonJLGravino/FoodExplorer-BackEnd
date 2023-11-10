@@ -1,4 +1,6 @@
 const knex = require("../database/knex");
+const sqliteConnection = require("../database/sqlite");
+const AppError = require("../utils/AppError");
 
 class FoodsController {
   async create(req, res) {
@@ -20,7 +22,7 @@ class FoodsController {
 
     await knex("ingredients").insert(ingredientInsert);
 
-    res.json();
+    return res.json();
   }
 
   async show(req, res) {
@@ -43,21 +45,11 @@ class FoodsController {
   }
 
   async index(req, res) {
-    const { title, ingredients } = req.query;
+    const { title, type } = req.query;
 
-    let foods;
-
-    if (ingredients) {
-      const filterIngredients = ingredients.split(",").map((tag) => tag.trim());
-      foods = await knex("ingredients")
-        .select(["foods.id", "foods.title"])
-        .whereLike("foods.title", `%${title}%`)
-        .whereIn("name", filterIngredients)
-        .innerJoin("foods", "foods.id", "ingredients.food_id")
-        .orderBy("foods.title");
-    } else {
-      foods = await knex("foods").whereLike("title", `%${title}%`);
-    }
+    let foods = await knex("foods")
+      .where("type", `${type}`)
+      .whereLike("title", `%${title}%`);
 
     const foodsIngredients = await knex("ingredients");
     const foodsWithIngredients = foods.map((food) => {
@@ -73,6 +65,52 @@ class FoodsController {
 
     return res.json({ foodsWithIngredients });
   }
+
+  async update(req, res) {
+    const { title, description, ingredients, price, type } = req.body;
+    const food_id = req.params.id;
+
+    const database = await sqliteConnection();
+    const food = await database.get("SELECT * FROM foods WHERE id = (?)", [
+      food_id,
+    ]);
+
+    if (!food) {
+      throw new AppError("Prato não encontrado");
+    }
+
+    const newIngredient = ingredients.map((name) => {
+      return {
+        food_id,
+        name,
+      };
+    });
+
+    await knex("ingredients").where({ food_id }).delete();
+
+    await knex("ingredients").insert(newIngredient);
+
+    food.title = title ?? food.title;
+    food.description = description ?? food.description;
+    food.price = price ?? food.price;
+    food.type = type ?? food.type;
+
+    await database.run(
+      `
+      UPDATE foods SET
+      title = ?,
+      description = ?, 
+      price = ?, 
+      type = ?
+      WHERE id = ?
+    `,
+      [food.title, food.description, food.price, food.type, food_id]
+    );
+
+    return res.json({ ...food, newIngredient });
+  }
 }
 
 module.exports = FoodsController;
+
+//description, ingredients, price, type

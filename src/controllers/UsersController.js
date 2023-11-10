@@ -23,7 +23,7 @@ class UsersController {
       [name, email, hashedPassword, isAdmin]
     );
 
-    res.status(201).json();
+    return res.status(201).json();
   }
 }
 
