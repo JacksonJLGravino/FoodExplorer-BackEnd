@@ -112,5 +112,3 @@ class FoodsController {
 }
 
 module.exports = FoodsController;
-
-//description, ingredients, price, type
